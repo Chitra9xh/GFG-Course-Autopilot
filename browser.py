@@ -1,9 +1,16 @@
-import logging, random, time
+import logging
+import random
+import re
+import shutil
+import time
+from pathlib import Path
+
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
-import config
 
+import config
 log = logging.getLogger("browser")
 
 
@@ -27,15 +34,185 @@ def wait_for(driver, key, timeout=None):
         raise SafetyStop(f"Timed out waiting for '{key}' on {driver.current_url} (page changed?)")
 
 
+def _find_installed_browser():
+    """Find an installed Chromium first, then Google Chrome."""
+
+    # Check every Chromium candidate before considering Google Chrome.
+    candidates = [
+        (
+            "Chromium",
+            [
+                "chromium",
+                "chromium-browser",
+            ],
+            [
+                "/usr/bin/chromium",
+                "/snap/bin/chromium",
+                "/usr/bin/chromium-browser",
+                "/snap/bin/chromium-browser",
+            ],
+        ),
+        (
+            "Google Chrome",
+            [
+                "google-chrome",
+                "google-chrome-stable",
+            ],
+            [
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                "/opt/google/chrome/chrome",
+            ],
+        ),
+    ]
+
+    for browser_name, commands, paths in candidates:
+        # First check PATH.
+        for command in commands:
+            executable = shutil.which(command)
+            if executable:
+                log.info(
+                    "Found installed %s: %s",
+                    browser_name,
+                    executable,
+                )
+                return Path(executable)
+
+        # Then check common installation locations.
+        for candidate in paths:
+            path = Path(candidate)
+            if path.is_file() and path.stat().st_mode & 0o111:
+                log.info(
+                    "Found installed %s: %s",
+                    browser_name,
+                    path,
+                )
+                return path
+
+    return None
+
+
+def _find_cached_browser_and_driver():
+    """Find a cached Chrome and its matching ChromeDriver."""
+
+    cache = Path.home() / ".cache" / "selenium"
+    browser_root = cache / "chrome" / "linux64"
+    driver_root = cache / "chromedriver" / "linux64"
+
+    if not browser_root.is_dir() or not driver_root.is_dir():
+        return None, None
+
+    def version_key(path):
+        # Sort versions numerically, not alphabetically.
+        return tuple(
+            int(part)
+            for part in re.findall(r"\d+", path.name)
+        )
+
+    browser_versions = sorted(
+        (
+            path for path in browser_root.iterdir()
+            if path.is_dir()
+        ),
+        key=version_key,
+        reverse=True,
+    )
+
+    for version_dir in browser_versions:
+        browser = version_dir / "chrome"
+        driver = driver_root / version_dir.name / "chromedriver"
+
+        if (
+            browser.is_file()
+            and browser.stat().st_mode & 0o111
+            and driver.is_file()
+            and driver.stat().st_mode & 0o111
+        ):
+            log.info(
+                "Found cached Chrome and matching ChromeDriver: %s",
+                version_dir.name,
+            )
+            return browser, driver
+
+    return None, None
+
+
 def launch_browser():
+    """Launch Chromium first, then Chrome, with a cached Chrome fallback."""
+
     config.CHROME_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    opts = webdriver.ChromeOptions()
-    opts.add_argument(f"--user-data-dir={config.CHROME_PROFILE_DIR}")
-    opts.add_argument("--start-maximized")
+
+    def make_options(browser_path=None):
+        opts = webdriver.ChromeOptions()
+
+        if browser_path is not None:
+            opts.binary_location = str(browser_path)
+
+        opts.add_argument(
+            f"--user-data-dir={config.CHROME_PROFILE_DIR}"
+        )
+        opts.add_argument("--profile-directory=Default")
+        opts.add_argument("--start-maximized")
+        opts.add_argument("--no-first-run")
+        opts.add_argument("--no-default-browser-check")
+
+        return opts
+
+    errors = []
+
+    # 1. Try installed Chromium first, followed by installed Google Chrome.
+    installed_browser = _find_installed_browser()
+
+    if installed_browser is not None:
+        try:
+            log.info(
+                "Launching installed browser: %s",
+                installed_browser,
+            )
+            return webdriver.Chrome(
+                options=make_options(installed_browser)
+            )
+        except WebDriverException as e:
+            message = (
+                f"Installed browser {installed_browser} failed: {e.msg}"
+            )
+            errors.append(message)
+            log.warning("%s", message)
+
+    # 2. Try cached Chrome with its matching cached ChromeDriver.
+    cached_browser, cached_driver = (
+        _find_cached_browser_and_driver()
+    )
+
+    if cached_browser is not None and cached_driver is not None:
+        try:
+            log.info("Launching cached Chrome: %s", cached_browser)
+
+            service = Service(executable_path=str(cached_driver))
+
+            return webdriver.Chrome(
+                service=service,
+                options=make_options(cached_browser),
+            )
+        except WebDriverException as e:
+            message = f"Cached Chrome failed: {e.msg}"
+            errors.append(message)
+            log.warning("%s", message)
+
+    # 3. Last resort: let Selenium Manager try its normal discovery.
     try:
-        return webdriver.Chrome(options=opts)   # Selenium Manager fetches the driver
+        log.info("Trying Selenium Manager as a final fallback.")
+        return webdriver.Chrome(options=make_options())
     except WebDriverException as e:
-        raise SafetyStop(f"Chrome failed to start (close any Chrome using {config.CHROME_PROFILE_DIR}): {e.msg[:200]}")
+        errors.append(f"Selenium Manager failed: {e.msg}")
+
+    details = "\n".join(errors)
+
+    raise SafetyStop(
+        "Could not start Chromium or Chrome. "
+        f"Close any browser using {config.CHROME_PROFILE_DIR}. "
+        f"Attempts:\n{details[:1500]}"
+    )
 
 
 def _logged_in(driver, timeout):
