@@ -1,0 +1,25 @@
+# Browser profile: holds your GFG login cookies and session. NEVER commit this.
+chrome_profile/
+
+# Runtime output
+logs/
+data/
+
+# Secrets (the Gemini key is read from an environment variable, but just in case)
+.env
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+
+LOGBOOK.md
