@@ -15,6 +15,12 @@ DELAY_MAX = 3.0
 CHROME_PROFILE_DIR = BASE_DIR / "chrome_profile"   # dedicated profile, login persists here
 PAGE_TIMEOUT = 20               # seconds for Selenium waits
 
+MAX_TABS = 5                    # Phase 5 (parallel tabs)
+INCLUDE_CHAPTERS = [1]          # chapters whose topic items are read/worked on (1 = DSA Basics to Advanced). 2 (SQL), 3 and 4 (test series) not confirmed yet.
+STATE_FILE = BASE_DIR / "data" / "state.json"
+PROBLEMS_LOG = BASE_DIR / "data" / "problems_todo.md"   # Phase 4
+HTML_DUMP_DIR = BASE_DIR / "data" / "html"              # course-page HTML saved by --scan, for debugging
+
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")   # never hard-code
 
 # ---------------- selectors ----------------
@@ -29,6 +35,17 @@ SELECTORS = {
     "captcha": None,   # not seen yet - paste the HTML when one appears
     # course page (page 1): topic cards; filtered by href regex in scanner.py
     "topic_links": (CSS, 'a[href*="/track/"]'),
+    
+    # course page (page 1): chapter blocks, each with a header and, when open, sub-category dropdowns
+    "chapters_section": (CSS, 'section[class*="batch_chapters_container__"]'),
+    "chapter_blocks": (XPATH, "//div[contains(@class,'batch_chapters_individual_tab__')]"),
+    "chapter_header": (XPATH, "./div[contains(@class,'batch_category_header__')]"),          # relative to a chapter block
+    "chapter_body": (XPATH, "./*[not(contains(@class,'batch_category_header__'))]"),         # relative to a chapter block
+    "subcat_headers": (XPATH, ".//div[contains(@class,'batch_subcategory_header__')]"),      # relative to a chapter block
+    "subcat_item": (XPATH, ".."),                                                            # relative to a sub-category header
+    "subcat_body": (XPATH, "./*[not(contains(@class,'batch_subcategory_header__'))]"),       # relative to a sub-category item
+    
+    
     # topic page (page 2) sidebar
     "sidebar_items": (CSS, 'a[class*="sidebar_item__"]'),
     "sidebar_tab_all": (XPATH, "//div[contains(@class,'sidebar_tabs__')][.//p[normalize-space()='all']]"),
@@ -44,6 +61,16 @@ MARKERS = {
     # page says 13 of 16 watched, so (1)-...599 = filled/complete.
     "icon_done": "Group11(1)-1667280599",
     "icon_todo": "Group11-1667280519",
+    
+        # course page structure (stable prefixes; the part after '__' is a build hash)
+    "chapter_tab_class": "batch_chapters_individual_tab__",
+    "chapter_number_class": "batch_category_number__",
+    "chapter_meta_class": "batch_category_meta__",
+    "open_class": "batch_open__",                        # on an open chapter block and its header
+    "sub_item_class": "batch_subcategory_item__",
+    "sub_open_class": "batch_subcategory_open__",        # on an open sub-category item
+    "sub_name_class": "batch_subcategory_name__",
+    "sub_meta_class": "batch_subcategory_meta__",
 }
 # UNCONFIRMED: no problem/coding item HTML pasted yet. Anything unclassified
 # becomes "other" (skipped + logged) unless it matches these, then "coding".

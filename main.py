@@ -1,7 +1,8 @@
 import argparse, logging, sys
 import config
+import state
 from browser import SafetyStop, ensure_logged_in, launch_browser
-from scanner import scan_items, scan_topics
+from scanner import scan_all, scan_items, scan_topics
 
 log = logging.getLogger("main")
 
@@ -26,7 +27,7 @@ def table(rows, cols):
 
 def main():
     ap = argparse.ArgumentParser(description="GFG Course Autopilot (Phase 1: scan only)")
-    ap.add_argument("--scan", action="store_true", help="print the topic table (course page)")
+    ap.add_argument("--scan", action="store_true", help="scan the course: open every chapter and sub-category, read all topics and their items, save data/state.json, print a summary")
     ap.add_argument("--topic", metavar="SLUG", help="with --scan: print items of one topic, e.g. recursion-siddhartha")
     args = ap.parse_args()
     if not args.scan:
@@ -45,9 +46,15 @@ def main():
             table(items, [("#", "index"), ("title", "title"), ("type", "type"), ("done", "done_s"), ("", "active_s")])
         else:
             topics = scan_topics(driver)
-            for t in topics:
-                t["pct"] = f'{t["progress"]}%'
-            table(topics, [("#", "index"), ("topic", "title"), ("progress", "pct"), ("button", "action"), ("slug", "slug")])
+            st = state.new_state(topics)   # shares the topic dicts, so each save below includes the topics read so far
+            state.save_state(st)
+            scan_all(driver, topics, on_topic=lambda t: state.save_state(st))
+            st["complete"] = True
+            state.save_state(st)
+            table(state.summarize(topics), [("#", "index"), ("ch", "chapter"), ("topic", "title"), ("sub-category", "sub_category"),
+                                            ("videos", "videos"), ("quizzes", "quizzes"), ("problems", "problems"),
+                                            ("other", "other"), ("?tick", "unknown"), ("slug", "slug")])
+            print(f"\nItems were read for chapters {sorted(config.INCLUDE_CHAPTERS)} only ('-' = not read). Saved to {config.STATE_FILE}")
         input("\nCompare with the browser window, then press Enter to close... ")
         return 0
     except SafetyStop as e:

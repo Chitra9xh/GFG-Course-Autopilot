@@ -1,5 +1,5 @@
 """Run: python test_scanner.py   (no browser needed). HTML trimmed from your pasted pages."""
-from scanner import parse_item_html, parse_topic_html
+from scanner import _topics_in_meta, normalize_href, parse_course_html, parse_item_html, parse_topic_html
 
 IMG = '<span><img src="https://media.geeksforgeeks.org/img-practice/%s.svg"></span>'
 YT = '<img src="https://media.geeksforgeeks.org/img-practice/youtube-1669791455.svg"><p class="sidebar_meta__9J4r4">Duration: 11 min</p>'
@@ -45,5 +45,51 @@ t = parse_topic_html(topic("/batch/dsa-juet/track/bit-magic-siddhartha", "Bit Ma
 assert (t["progress"], t["action"]) == (0, "Start"), t
 # 'Continue' card links to a video, not a topic -> ignored
 assert parse_topic_html(topic("/batch/dsa-juet/track/recursion-siddhartha/video/MjMzMQ%3D%3D", "Recursion", 41, "Continue")) is None
+
+# --- href seen on the real Recursion page: absolute URL + tracking query (fake values here), '&' arrives as &amp; ---
+P = "/batch/dsa-juet/track/recursion-siddhartha/video/MTYyOQ%3D%3D"
+RAW = "https://www.geeksforgeeks.org" + P + "?_gl=1*abc*_up*MQ..&gclid=XYZ"
+assert normalize_href(RAW) == P and normalize_href(V) == V and normalize_href(None) is None
+r = parse_item_html(item(RAW.replace("&", "&amp;"), "Some video", "Group11(1)-1667280599"))
+assert (r["href"], r["type"], r["done"]) == (P, "video", True), r
+
+# --- course page (page 1): chapters, sub-categories, topic cards. Markup shaped like the real page (class prefixes + hashes). ---
+def card(*a):   # the real cards are <a target="_self" href=...>
+    return topic(*a).replace("<a href=", '<a target="_self" href=', 1)
+
+def chapter_block(n, title, meta, open_, body=""):
+    o = " batch_open__FkoHN" if open_ else ""
+    return (f'<div class="batch_individual_tab__type___wbkY batch_chapters_individual_tab__aYS9a {o}">'
+            f'<div class="batch_category_header___igBF  {o}"><span class="batch_category_number__2Aaag">{n}</span><h3>{title}</h3>'
+            f'<span class="batch_category_meta__OnTVd">{meta}</span><div class="batch_arrow_icon__0ipKc"></div></div>{body}</div>')
+
+def sub_item(name, meta, cards=None):   # cards=None -> closed: no body in the page
+    o = " batch_subcategory_open__J4ONM" if cards is not None else ""
+    body = f'<div class="batch_items__RzVSg"><div class="batch_content__HAEMJ">{cards}</div></div>' if cards is not None else ""
+    return (f'<div class="batch_subcategory_item__95s0o {o}"><div class="batch_subcategory_header__l8FWZ">'
+            f'<span class="batch_subcategory_name__YnkaH">{name}</span><span class="batch_subcategory_meta__aFkyw">{meta}</span>'
+            f'<i aria-hidden="true" class="chevron down icon batch_subcategory_chevron___gB9o"></i></div>{body}</div>')
+
+PAGE = ('<section class="batch_chapters_container__txdTP">'
+        + card("/batch/dsa-juet/track/recursion-siddhartha/video/MjMzMQ%3D%3D", "Recursion", 41, "Continue")   # 'Continue' card sits before the chapters
+        + chapter_block(1, "DSA Basics", "2 Chapters · 3 Topics", True, '<div class="batch_subcategory_accordion__1Kk_W">'
+            + sub_item("Fundamentals", "1 Topics")
+            + sub_item("Maths, Recursion &amp; Bits", "2 Topics",
+                       card("/batch/dsa-juet/track/mathematics-siddhartha", "Mathematics", 100, "Resume")
+                       + card("/batch/dsa-juet/track/recursion-siddhartha", "Recursion", 41, "Resume"))
+            + '</div>')
+        + chapter_block(2, "SQL", "5 Topics", True, '<div class="batch_items__RzVSg">' + card("/batch/dsa-juet/track/sql-basics-siddhartha", "SQL Basics", 0, "Start") + '</div>')
+        + chapter_block(3, "Product Based Test Series", "5 Topics", False)
+        + '</section>')
+chs = parse_course_html(PAGE)
+assert [(c["number"], c["title"], c["meta"], c["open"], len(c["subcategories"]), len(c["topics"])) for c in chs] == [
+    (1, "DSA Basics", "2 Chapters · 3 Topics", True, 2, 2), (2, "SQL", "5 Topics", True, 0, 1),
+    (3, "Product Based Test Series", "5 Topics", False, 0, 0)], chs
+assert [(s["name"], s["meta"], s["open"]) for s in chs[0]["subcategories"]] == [
+    ("Fundamentals", "1 Topics", False), ("Maths, Recursion & Bits", "2 Topics", True)], chs[0]["subcategories"]
+assert [(t["slug"], t["progress"], t["action"], t["sub_category"]) for t in chs[0]["topics"]] == [
+    ("mathematics-siddhartha", 100, "Resume", "Maths, Recursion & Bits"), ("recursion-siddhartha", 41, "Resume", "Maths, Recursion & Bits")]
+assert [(t["slug"], t["sub_category"]) for t in chs[1]["topics"]] == [("sql-basics-siddhartha", None)]   # chapter with no sub-categories
+assert (_topics_in_meta("12 Chapters · 33 Topics"), _topics_in_meta("3 Topics"), _topics_in_meta("")) == (33, 3, None)
 
 print("all checks passed")
