@@ -55,7 +55,7 @@ def normalize_href(href):
 
 
 def parse_item_html(outer_html):
-    """Sidebar item (page 2) -> dict. done: True/False, or None if tick icon unrecognised."""
+    """Sidebar item (page 2) -> dict. done: True/False, or None if tick icon unrecognised (then 'icon' is stored)."""
     p = _Item()
     p.feed(outer_html)
     done = None
@@ -66,13 +66,16 @@ def parse_item_html(outer_html):
         if M["icon_todo"] in src:
             done = False
             break
-    return {
+    result = {
         "title": " ".join("".join(p.title).split()),
         "href": normalize_href(p.href),
         "type": classify(p.href, outer_html),
         "done": done,
         "active": "active" in (p.cls or "").split(),
     }
+    if done is None:
+        result["icon"] = next((s.rsplit("/", 1)[-1] for s in p.imgs if not s.startswith("data:")), None)
+    return result
 
 
 class _Topic(HTMLParser):
@@ -347,6 +350,49 @@ def _wait_all_tab_active(driver):
         WebDriverWait(driver, config.PAGE_TIMEOUT).until(active)
     except TimeoutException:
         raise SafetyStop(f"Sidebar 'all' tab did not become active after the click on {driver.current_url} (page changed?)")
+        
+        
+def parse_quiz_html(outer_html):
+    """Sidebar with the 'quiz' tab open -> dict, or None if there is no quiz block."""
+    counts = {k.lower(): int(n) for n, k in re.findall(r"(\d+)\s*(Correct|Wrong|Unanswered)", outer_html)}
+    m = re.search(r"quiz\s*\((\d+)\)", outer_html, re.I)
+    total = int(m.group(1)) if m else (sum(counts.values()) or None)
+    if not total:
+        return None
+    unanswered = counts.get("unanswered", total)
+    return {"questions": total, "correct": counts.get("correct", 0), "wrong": counts.get("wrong", 0),
+            "unanswered": unanswered, "done": unanswered == 0}
+
+
+def scan_quiz(driver):
+    """Click the sidebar 'quiz' tab (read-only; nothing is answered) and read the question counts.
+    Returns a quiz item dict, or None if the topic has no quiz tab or no quiz."""
+    tabs = find(driver, "sidebar_tab_quiz")
+    if not tabs:
+        return None
+    if "active" not in (tabs[0].get_attribute("class") or "").split():
+        tabs[0].click()
+
+    def ready(d):
+        try:
+            t, box = find(d, "sidebar_tab_quiz"), find(d, "sidebar_container")
+            return (bool(t) and "active" in (t[0].get_attribute("class") or "").split()
+                    and bool(box) and parse_quiz_html(box[0].get_attribute("outerHTML")) is not None)
+        except StaleElementReferenceException:
+            return False
+
+    try:
+        WebDriverWait(driver, config.QUIZ_WAIT).until(ready)
+    except TimeoutException:
+        return None
+    human_pause()
+    check_safe_page(driver)
+    q = parse_quiz_html(find(driver, "sidebar_container")[0].get_attribute("outerHTML"))
+    href = normalize_href(driver.current_url) if "/quiz/" in driver.current_url else None
+    return {"title": "Quiz", "href": href, "type": "quiz", "done": q["done"], "active": False,
+            "questions": q["questions"], "correct": q["correct"], "wrong": q["wrong"], "unanswered": q["unanswered"]}
+            
+            
 
 
 def scan_items(driver, slug):
@@ -370,10 +416,14 @@ def scan_items(driver, slug):
         if it["type"] == "other":
             log.warning("Unclassified item #%d %r href=%s -> 'other' (will be skipped)", it["index"], it["title"], it["href"])
         if it["done"] is None:
-            log.warning("Unrecognised tick icon on #%d %r", it["index"], it["title"])
+            log.warning("Unrecognised tick icon on #%d %r (icon=%s)", it["index"], it["title"], it.get("icon"))
         items.append(it)
+    quiz = scan_quiz(driver)
+    if quiz:
+        quiz["index"] = len(items) + 1
+        log.info("Quiz found: %d questions, %d unanswered, href=%s", quiz["questions"], quiz["unanswered"], quiz["href"])
+        items.append(quiz)
     return items
-    
 
 
 def scan_all(driver, topics, on_topic=None):

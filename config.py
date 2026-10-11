@@ -14,6 +14,7 @@ DELAY_MIN = 1.0                 # human-like pause between actions (seconds)
 DELAY_MAX = 3.0
 CHROME_PROFILE_DIR = BASE_DIR / "chrome_profile"   # dedicated profile, login persists here
 PAGE_TIMEOUT = 20               # seconds for Selenium waits
+QUIZ_WAIT = 6   # seconds to wait for the quiz block after clicking the quiz tab (short: many topics have no quiz)
 
 MAX_TABS = 5                    # Phase 5 (parallel tabs)
 INCLUDE_CHAPTERS = [1]          # chapters whose topic items are read/worked on (1 = DSA Basics to Advanced). 2 (SQL), 3 and 4 (test series) not confirmed yet.
@@ -49,6 +50,9 @@ SELECTORS = {
     # topic page (page 2) sidebar
     "sidebar_items": (CSS, 'a[class*="sidebar_item__"]'),
     "sidebar_tab_all": (XPATH, "//div[contains(@class,'sidebar_tabs__')][.//p[normalize-space()='all']]"),
+    
+    "sidebar_tab_quiz": (XPATH, "//div[contains(@class,'sidebar_tabs__')][.//p[normalize-space()='quiz']]"),
+    "sidebar_container": (CSS, "#scrollableContainer"),
 }
 
 # ---------------- parsing markers (not selectors; used on pasted/outerHTML) ----------------
@@ -72,7 +76,7 @@ MARKERS = {
     "sub_name_class": "batch_subcategory_name__",
     "sub_meta_class": "batch_subcategory_meta__",
 }
-# UNCONFIRMED: no problem/coding item HTML pasted yet. Anything unclassified
+# Confirmed: coding items have /problem/ in their href. Anything unclassified
 # becomes "other" (skipped + logged) unless it matches these, then "coding".
 CODING_HREF_PARTS = ("/problem",)
 CODING_KEYWORDS = ("problem", "coding", "assessment")
