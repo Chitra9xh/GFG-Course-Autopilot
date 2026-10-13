@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # ---------------- user-tunable settings ----------------
 COURSE_URL = "https://www.geeksforgeeks.org/batch/dsa-juet"   # no trailing slash
-PLAYBACK_SPEED = 2.0            # Phase 2 (site menu offers 0.25x .. 2x)
+PLAYBACK_SPEED = 2.0            # Phase 2. Must be one of the site's menu values: 0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2
 MAX_QUIZ_RETRIES = 2            # Phase 3
 PASS_THRESHOLD = 0.9            # Phase 3 (fraction)
 GEMINI_MODEL = "gemini-2.5-flash"   # Phase 3 - set to a model your key can use
@@ -15,6 +15,13 @@ DELAY_MAX = 3.0
 CHROME_PROFILE_DIR = BASE_DIR / "chrome_profile"   # dedicated profile, login persists here
 PAGE_TIMEOUT = 20               # seconds for Selenium waits
 QUIZ_WAIT = 6   # seconds to wait for the quiz block after clicking the quiz tab (short: many topics have no quiz)
+
+VERIFY_TICK_WAIT = 60           # Phase 2: seconds to re-read the sidebar after a video ends, waiting for its tick
+VERIFY_POLL = 5                 # Phase 2: seconds between those sidebar re-reads
+STALL_SECONDS = 20              # Phase 2: currentTime not advancing for this long = stalled
+MAX_PLAY_RETRIES = 3            # Phase 2: times to press play again after a stall before stopping
+VIDEO_TIMEOUT_FACTOR = 1.5      # Phase 2: hard timeout = duration / speed * FACTOR + EXTRA
+VIDEO_TIMEOUT_EXTRA = 60
 
 MAX_TABS = 5                    # Phase 5 (parallel tabs)
 INCLUDE_CHAPTERS = [1]          # chapters whose topic items are read/worked on (1 = DSA Basics to Advanced). 2 (SQL), 3 and 4 (test series) not confirmed yet.
@@ -53,6 +60,15 @@ SELECTORS = {
     
     "sidebar_tab_quiz": (XPATH, "//div[contains(@class,'sidebar_tabs__')][.//p[normalize-space()='quiz']]"),
     "sidebar_container": (CSS, "#scrollableContainer"),
+    
+        # video page (page 3). 'vjs-*' are video.js classes; 'track_*__hash' are matched by prefix.
+    "video_el": (CSS, "div.video-js video.vjs-tech"),
+    "big_play": (CSS, "div.video-js button.vjs-big-play-button"),
+    "play_control": (CSS, "div.video-js button.vjs-play-control"),
+    "rate_menu_button": (CSS, "div.video-js div.vjs-playback-rate"),      # hover this to open the speed menu
+    "rate_items": (CSS, "div.video-js div.vjs-playback-rate li.vjs-menu-item"),   # text like '2x', '1.75x'
+    "video_title": (CSS, 'span[class*="track_title__"]'),
+    "next_button": (XPATH, "//div[contains(@class,'track_action_sec__')]//button[normalize-space()='Next']"),
 }
 
 # ---------------- parsing markers (not selectors; used on pasted/outerHTML) ----------------
