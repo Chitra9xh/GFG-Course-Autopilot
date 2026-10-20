@@ -40,8 +40,7 @@ def run_videos(driver, args):
     finally:
         if results:
             print()
-            table(results, [("#", "n"), ("video", "title"), ("length", "length"), ("took", "wall"), ("outcome", "outcome"),
-                            ("play retries", "retries"), ("tick", "tick")])
+            table(results, [("#", "n"), ("video", "title"), ("length", "length"), ("from", "from"), ("took", "wall"), ("outcome", "outcome"), ("play retries", "retries"), ("tick", "tick")])
     print(f"\n{summary}")
 
 def main():

@@ -191,12 +191,16 @@ def _start(driver, item):
 
 def _set_speed(driver, speed):
     """Pick the speed in the site's own menu. Fallback only if that did not work: video.playbackRate.
-    Never touches currentTime. Returns 'menu' or 'playbackRate'."""
+    Never touches currentTime. Returns 'already set', 'menu' or 'playbackRate'."""
     target = float(speed)
 
     def at_target():
         s = _read(driver)
         return bool(s) and abs(s["rate"] - target) < 0.01
+        
+    if at_target():
+        log.info("Speed is already %s: the site's menu was not used", speed_label(speed))
+        return "already set"
 
     try:
         _wake(driver)
@@ -279,10 +283,11 @@ def play_video(driver, item, speed, n):
     if any(p in url.lower() for p in config.CODING_HREF_PARTS):
         raise SafetyStop(f"Refusing to touch a coding page: {url}")
     wait_for(driver, "video_el")
-    duration = _wait_duration(driver)["duration"]
+    first = _wait_duration(driver)
+    duration, start_pos = first["duration"], first["current"]
     titles = find(driver, "video_title")
     title = " ".join(titles[0].text.split()) if titles and titles[0].text.strip() else item["title"]
-    log.info("Video %d: %r, length %s, speed %s, about %s to watch", n, title, _mmss(duration), speed_label(speed), _mmss(duration / speed))
+    log.info("Video %d: %r, length %s, starting at %s, speed %s, about %s to watch", n, title, _mmss(duration), _mmss(start_pos), speed_label(speed), _mmss(duration / speed))
     if n == 1:
         dump_page(driver, f"video_start_{item['index']}.html")
     _start(driver, item)
@@ -296,8 +301,8 @@ def play_video(driver, item, speed, n):
         s = _read(driver)
         where = f"at {_mmss(s['current'])} of {_mmss(s['duration'])}" if s else f"(player gone, page is {driver.current_url})"
         raise SafetyStop(f"Video {title!r}: {outcome} {where}, {retries} play retries. Not marked as watched.")
-    log.info("Video %d ended after %s (speed via %s, %d play retries)", n, _mmss(wall), how, retries)
-    return {"n": n, "title": title, "length": _mmss(duration), "wall": _mmss(wall), "outcome": outcome, "retries": retries, "tick": "?"}
+    log.info("Video %d ended after %s (speed: %s, %d play retries)", n, _mmss(wall), how, retries)
+    return {"n": n, "title": title, "length": _mmss(duration), "from": _mmss(start_pos), "wall": _mmss(wall), "outcome": outcome, "retries": retries, "tick": "?"}
 
 
 def verify_tick(driver, item):
