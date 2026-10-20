@@ -23,7 +23,6 @@ MAX_PLAY_RETRIES = 3            # Phase 2: times to press play again after a sta
 VIDEO_TIMEOUT_FACTOR = 1.5      # Phase 2: hard timeout = duration / speed * FACTOR + EXTRA
 VIDEO_TIMEOUT_EXTRA = 60
 
-MAX_TABS = 5                    # Phase 5 (parallel tabs)
 INCLUDE_CHAPTERS = [1]          # chapters whose topic items are read/worked on (1 = DSA Basics to Advanced). 2 (SQL), 3 and 4 (test series) not confirmed yet.
 STATE_FILE = BASE_DIR / "data" / "state.json"
 PROBLEMS_LOG = BASE_DIR / "data" / "problems_todo.md"   # Phase 4

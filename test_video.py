@@ -52,6 +52,16 @@ assert not video.same_path("/a/video/1", "/a/video/2")
 assert video.parse_rate_text("2x") == 2.0 and video.parse_rate_text("1.75x, selected") == 1.75
 assert video.parse_rate_text("Auto") is None and video.parse_rate_text(None) is None
 
+# _set_speed: already at the target speed -> the site's menu is never touched
+_read0, _find0 = video._read, video.find
+video._read = lambda d: {"rate": 2.0}
+def _no_menu(d, key):
+    raise AssertionError("the site's menu was touched")
+video.find = _no_menu
+assert video._set_speed(None, 2.0) == "already set"
+video._read, video.find = _read0, _find0
+assert video._mmss(1058) == "17:38"      # format of the new 'from' column
+
 # carry_over_pending: still pending -> mark kept; tick arrived -> mark dropped and reported
 old = [item(1, "video", tick_pending="2026-10-13T10:00:00"), item(2, "video", tick_pending="2026-10-13T10:00:00"), item(3, "video")]
 new = [item(1, "video"), item(2, "video", done=True), item(3, "video")]
