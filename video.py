@@ -1,4 +1,4 @@
-"""Phase 2 video runner: pure decision logic (top, testable offline) and the Selenium part (bottom)."""
+"""Video runner: pure decision logic (top, testable offline) and the Selenium part (bottom)."""
 import logging, re, time
 from datetime import datetime
 from urllib.parse import unquote, urlsplit

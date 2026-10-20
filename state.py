@@ -12,7 +12,7 @@ def _now():
 
 
 def new_state(topics=None):
-    """'complete' stays False until a scan has finished, so later phases can tell a partial file."""
+    """'complete' stays False until a scan has finished, so a partial file can be told apart."""
     return {"version": VERSION, "updated_at": _now(), "complete": False, "topics": topics if topics is not None else []}
 
 

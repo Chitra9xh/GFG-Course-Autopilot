@@ -44,7 +44,7 @@ def run_videos(driver, args):
     print(f"\n{summary}")
 
 def main():
-    ap = argparse.ArgumentParser(description="GFG Course Autopilot (Phase 2: scan, watch videos)")
+    ap = argparse.ArgumentParser(description="GFG Course Autopilot (scan, watch videos)")
     ap.add_argument("--scan", action="store_true", help="scan the course: open every chapter and sub-category, read all topics and their items, save data/state.json, print a summary")
     ap.add_argument("--topic", metavar="SLUG", help="with --scan: print items of one topic; with --videos: the topic to work on, e.g. recursion-siddhartha")
     ap.add_argument("--videos", action="store_true", help="watch the incomplete videos of --topic in real time at PLAYBACK_SPEED (needs data/state.json from --scan)")
