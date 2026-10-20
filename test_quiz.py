@@ -248,4 +248,15 @@ ask, seen = make_ask({"m1": ["sorry, I cannot", '{"1": "B", "10": "B"}']})      
 final, notes, used = quiz.solve(qs, ask, ["m1"], 1, 2, 5, sleeps.append)
 assert final == {1: 1, 10: 1} and len(seen) == 2
 
+# expected counters after one submit
+b = {"correct": 3, "wrong": 1, "unanswered": 6}
+assert quiz.expected_counters(b, "correct") == {"correct": 4, "wrong": 1, "unanswered": 5}
+assert quiz.expected_counters(b, "incorrect") == {"correct": 3, "wrong": 2, "unanswered": 5}
+for bad_before, bad_result in ((b, "maybe"), ({"correct": 9, "wrong": 1, "unanswered": 0}, "correct")):
+    try:
+        quiz.expected_counters(bad_before, bad_result)
+        raise AssertionError("should have stopped")
+    except quiz.QuizError:
+        pass
+
 print("test_quiz: all passed")

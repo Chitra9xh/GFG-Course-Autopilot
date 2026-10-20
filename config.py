@@ -19,7 +19,8 @@ CHROME_PROFILE_DIR = BASE_DIR / "chrome_profile"   # dedicated profile; the logi
 PAGE_TIMEOUT = 20               # Selenium wait, seconds
 QUIZ_WAIT = 6                   # wait for the quiz block (short: many topics have no quiz)
 QUIZ_NAV_WAIT = 10              # wait for "Question N" after clicking a sidebar number
-QUIZ_SUBMIT_WAIT = 15           # wait for the right/wrong message after Submit Response
+QUIZ_SUBMIT_WAIT = 10           # wait for the right/wrong message after Submit Response
+GEMINI_MIN_GAP = 12              # minimum seconds between Gemini calls; set from the free-tier limits page
 
 VERIFY_TICK_WAIT = 60           # after a video ends, how long to re-read the sidebar for its tick
 VERIFY_POLL = 5                 # seconds between those re-reads
@@ -94,6 +95,7 @@ SELECTORS = {
 
     # quiz page: one question at a time. Buttons are matched by text, never by position.
     "quiz_boxes": (CSS, 'div[class*="sidebar_quiz_questions__flex__"] > div'),     # count = number of questions
+    "quiz_contents": (CSS, 'div[class*="quiz_contents__inner"]'),                   # whole question block (prefix from the test fixtures)
     "quiz_question_current": (CSS, 'span[class*="track_question_current__"]'),      # text like "Question 5"
     "quiz_question_body": (CSS, 'div[class*="track_question_body__"]'),
     "quiz_options": (CSS, 'div[class*="track_question_choices__"] > div'),          # type is checked with MARKERS

@@ -35,7 +35,6 @@ class AllModelsFailed(QuizError):
     pass
 
 
-# ---------------- tiny HTML tree ----------------
 class Node:
     def __init__(self, tag, attrs):
         self.tag, self.attrs, self.children = tag, dict(attrs), []
@@ -95,7 +94,6 @@ def find_class(node, prefix):
     return find_all(node, lambda n: has_class(n, prefix))
 
 
-# ---------------- text for Gemini ----------------
 def _script(node):
     """<sup>/<sub> -> ^x / _x, so O(n<sup>2</sup>) reaches Gemini as O(n^2), not O(n2)."""
     inner = re.sub(r"\s+", " ", _inline(node)).strip()
@@ -184,7 +182,6 @@ def render_text(node):
     return "\n".join(t.out), t.notes
 
 
-# ---------------- quiz page ----------------
 def _parse_option(el):
     kind = "radio" if has_class(el, M["quiz_radio_class"]) else "unknown"
     texts = find_class(el, M["quiz_option_text_class"])
@@ -265,7 +262,6 @@ def split_questions(questions):
             [q for q in questions if not q["answered"] and q["unsupported"]])
 
 
-# ---------------- prompt and reply ----------------
 def build_prompt(questions):
     head = ("You are answering a multiple-choice quiz on programming, data structures and algorithms.\n"
             "Every question has exactly one correct option. Read carefully: some ask which statement is NOT true. "
@@ -305,7 +301,6 @@ def parse_reply(text, questions):
     return out
 
 
-# ---------------- double-check ----------------
 def disputed(passes):
     """Question numbers on which the passes do not all agree."""
     keys = set(passes[0])
@@ -337,7 +332,6 @@ def resolve(passes, tiebreak=None):
     return final, notes
 
 
-# ---------------- model fallback ----------------
 def classify_error(exc):
     """retry (busy, rate limit, network, bad reply) | skip_model (model gone) | fatal (bad key/request, or a bug)."""
     if isinstance(exc, ReplyError):
@@ -416,3 +410,16 @@ def solve(questions, ask, models, passes, tries, backoff, sleep=time.sleep, log=
         used.append(model)
     final, notes = resolve(results, tiebreak)
     return final, notes, used
+    
+    
+    
+def expected_counters(before, result):
+    """Counters after one submit: unanswered -1, and correct or wrong +1."""
+    if result not in ("correct", "incorrect"):
+        raise QuizError(f"unknown result {result!r}")
+    if before["unanswered"] < 1:
+        raise QuizError("no unanswered question left to submit")
+    after = {k: before[k] for k in ("correct", "wrong", "unanswered")}
+    after["unanswered"] -= 1
+    after["correct" if result == "correct" else "wrong"] += 1
+    return after
