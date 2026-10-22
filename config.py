@@ -22,6 +22,8 @@ QUIZ_NAV_WAIT = 10              # wait for "Question N" after clicking a sidebar
 QUIZ_SUBMIT_WAIT = 10           # wait for the right/wrong message after Submit Response
 GEMINI_MIN_GAP = 12              # minimum seconds between Gemini calls; set from the free-tier limits page
 
+TICK_LOAD_WAIT = 6              # after scrolling a sidebar, seconds to wait for lazy-loaded tick icons
+TICK_RELOAD_ROUNDS = 2          # extra rounds that scroll each still-unknown item into view and re-read
 VERIFY_TICK_WAIT = 60           # after a video ends, how long to re-read the sidebar for its tick
 VERIFY_POLL = 5                 # seconds between those re-reads
 STALL_SECONDS = 20              # currentTime not advancing this long = stalled
