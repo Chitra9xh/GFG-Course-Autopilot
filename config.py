@@ -20,6 +20,7 @@ PAGE_TIMEOUT = 20               # Selenium wait, seconds
 QUIZ_WAIT = 6                   # wait for the quiz block (short: many topics have no quiz)
 QUIZ_NAV_WAIT = 10              # wait for "Question N" after clicking a sidebar number
 QUIZ_SUBMIT_WAIT = 10           # wait for the right/wrong message after Submit Response
+GEMINI_TIMEOUT = 240            # seconds before ONE Gemini call is given up (then retried / next model); the slowest pass seen took 143 s
 GEMINI_MIN_GAP = 12              # minimum seconds between Gemini calls; set from the free-tier limits page
 
 TICK_LOAD_WAIT = 6              # after scrolling a sidebar, seconds to wait for lazy-loaded tick icons
