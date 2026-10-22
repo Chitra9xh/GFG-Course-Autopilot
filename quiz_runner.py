@@ -24,7 +24,8 @@ def make_ask():
     if not key or key == "your-key-here":
         raise SafetyStop("GEMINI_API_KEY is missing or still the placeholder: put your key in .env")
     from google import genai
-    client = genai.Client(api_key=key)
+    from google.genai import types
+    client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=config.GEMINI_TIMEOUT * 1000))   # milliseconds
     last = [0.0]
 
     def ask(model, prompt):
@@ -293,18 +294,24 @@ def dry_run(driver, topic, ask, on_save, rows):
             f"question {first['number']} (selected state {'shown' if shown else 'NOT shown'}). Nothing was submitted.")
 
 
-def run_real(driver, topic, ask, on_save, rows, max_questions):
+def _ask_start(count):
+    print(f"\nAbout to submit {count} answer(s) for real. Every answer is FINAL (no retake).")
+    if input("Type yes to start: ").strip().lower() != "yes":
+        raise SafetyStop("Start declined at the prompt; nothing was submitted.")
+
+
+def run_real(driver, topic, ask, on_save, rows, max_questions, confirm_start=None, stats=None):
     """Submit the unanswered questions one at a time. With max_questions: stop after N and confirm each one.
     Without it: one confirmation, then the whole quiz."""
     msg, ctx = _open_and_solve(driver, topic, ask, on_save, rows)
     if msg:
         return msg
     qz, n, final, notes = ctx["qz"], ctx["n"], ctx["final"], ctx["notes"]
+    if stats is not None:
+        stats["models"] = list(dict.fromkeys(ctx["used"]))
     batch = ctx["todo"][:max_questions] if max_questions else ctx["todo"]
     if max_questions is None:
-        print(f"\nAbout to submit {len(batch)} answer(s) for real. Every answer is FINAL (no retake).")
-        if input("Type yes to start: ").strip().lower() != "yes":
-            raise SafetyStop("Start declined at the prompt; nothing was submitted.")
+        (confirm_start or _ask_start)(len(batch))
     before = read_counters(driver)
     submitted = 0
     for q in batch:
