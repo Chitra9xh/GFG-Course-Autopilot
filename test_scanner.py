@@ -92,4 +92,43 @@ assert [(t["slug"], t["progress"], t["action"], t["sub_category"]) for t in chs[
 assert [(t["slug"], t["sub_category"]) for t in chs[1]["topics"]] == [("sql-basics-siddhartha", None)]   # chapter with no sub-categories
 assert (_topics_in_meta("12 Chapters · 33 Topics"), _topics_in_meta("3 Topics"), _topics_in_meta("")) == (33, 3, None)
 
+# --- lazy-loaded tick icons: scroll, wait, re-read (fake driver: an icon "loads" once its item was scrolled into view) ---
+import scanner, config
+from scanner import read_sidebar, unknown_ticks
+
+assert unknown_ticks([{"done": True}, {"done": None}, {"done": False}, {"done": None}]) == [1, 3]
+
+class FakeEl:
+    def __init__(self, n, loads_on):
+        self.n, self.loads_on, self.visible = n, loads_on, False   # loads_on: "bottom", "own" or "never"
+    def get_attribute(self, name):
+        icon = "Group11(1)-1667280599" if self.visible else "Problems_1752210994"
+        return item(f"/batch/dsa-juet/track/x/video/V{self.n}", f"Video {self.n}", icon)
+
+class FakeDriver:
+    def __init__(self, loads):
+        self.els = [FakeEl(n, w) for n, w in enumerate(loads)]
+        self.scrolled = []
+    def execute_script(self, script, el):
+        self.scrolled.append(el.n)
+        for e in self.els:   # scrolling to the bottom loads the 'bottom' icons; scrolling to an item loads its own
+            if (e is el) or (e.loads_on == "bottom" and el is self.els[-1]):
+                e.visible = e.visible or e.loads_on != "never"
+
+scanner.find = lambda d, key: d.els
+config.TICK_LOAD_WAIT, config.TICK_RELOAD_ROUNDS = 1, 2
+
+d = FakeDriver(["bottom", "bottom", "bottom"])           # scrolling to the bottom is enough
+r = read_sidebar(d)
+assert [i["done"] for i in r] == [True, True, True] and d.scrolled == [2], (r, d.scrolled)
+
+d = FakeDriver(["bottom", "own", "own", "bottom"])        # items 2 and 3 need their own scroll (round 1)
+r = read_sidebar(d)
+assert [i["done"] for i in r] == [True, True, True, True] and d.scrolled == [3, 1, 2], (r, d.scrolled)
+
+d = FakeDriver(["bottom", "never"])                       # never loads: stays unknown, never marked done, no hang
+r = read_sidebar(d)
+assert [i["done"] for i in r] == [True, None] and r[1]["icon"] == "Problems_1752210994.svg", r
+assert unknown_ticks(r) == [1]
+
 print("all checks passed")

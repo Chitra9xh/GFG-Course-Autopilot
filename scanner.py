@@ -392,7 +392,44 @@ def scan_quiz(driver):
     return {"title": "Quiz", "href": href, "type": "quiz", "done": q["done"], "active": False,
             "questions": q["questions"], "correct": q["correct"], "wrong": q["wrong"], "unanswered": q["unanswered"]}
             
-            
+def unknown_ticks(items):
+    """0-based positions of the items whose tick icon is not recognised."""
+    return [i for i, it in enumerate(items) if it["done"] is None]
+
+
+def _show_item(driver, i):
+    """Scroll sidebar item i into view (the last one if i is too big). Lazy-loaded icons load once visible."""
+    els = find(driver, "sidebar_items")
+    if els:
+        driver.execute_script("arguments[0].scrollIntoView({block: 'end'});", els[min(i, len(els) - 1)])
+
+
+def read_sidebar(driver):
+    """Parse every sidebar item. Icons of items below the visible part may not be loaded yet, so scroll the
+    list to the bottom and wait until every tick is recognised. Items still unknown are scrolled into view one by
+    one and re-read (TICK_RELOAD_ROUNDS times). What stays unknown is returned with done=None (skipped later)."""
+    seen = []
+
+    def parse(_):
+        try:
+            seen[:] = [parse_item_html(el.get_attribute("outerHTML")) for el in find(driver, "sidebar_items")]
+        except StaleElementReferenceException:
+            return False
+        return bool(seen) and not unknown_ticks(seen)
+
+    _show_item(driver, 10 ** 6)
+    for rnd in range(config.TICK_RELOAD_ROUNDS + 1):
+        try:
+            WebDriverWait(driver, config.TICK_LOAD_WAIT).until(parse)
+            break
+        except TimeoutException:
+            if rnd < config.TICK_RELOAD_ROUNDS:
+                bad = unknown_ticks(seen)
+                log.info("%d tick icon(s) not loaded yet (item #%s): scrolling them into view (round %d)",
+                         len(bad), ", #".join(str(i + 1) for i in bad), rnd + 1)
+                for i in bad:
+                    _show_item(driver, i)
+    return seen            
 
 
 def scan_items(driver, slug):
@@ -410,8 +447,8 @@ def scan_items(driver, slug):
         human_pause()
         check_safe_page(driver)
     items = []
-    for el in wait_for(driver, "sidebar_items"):
-        it = parse_item_html(el.get_attribute("outerHTML"))
+    wait_for(driver, "sidebar_items")
+    for it in read_sidebar(driver):
         it["index"] = len(items) + 1
         if it["type"] == "other":
             log.warning("Unclassified item #%d %r href=%s -> 'other' (will be skipped)", it["index"], it["title"], it["href"])
