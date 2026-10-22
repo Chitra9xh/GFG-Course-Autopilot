@@ -142,3 +142,25 @@ def append_problems(topic, path):
             f.write("\n")
         f.write("\n".join(lines) + "\n")
     return len(lines)
+    
+def parse_chapters(tokens, unsupported=()):
+    """['1', '2'] or ['1,2'] or ['1,', '2'] -> [1, 2]. Raises ValueError with a plain message for anything else."""
+    parts = [p for tok in tokens for p in tok.replace(",", " ").split()]
+    if not parts:
+        raise ValueError("--chapters needs at least one chapter number, e.g. --chapters 1 2")
+    nums = []
+    for p in parts:
+        if not (p.isascii() and p.isdigit()) or int(p) < 1:
+            raise ValueError(f"--chapters: {p!r} is not a chapter number (use whole numbers such as 1 or 2)")
+        n = int(p)
+        if n in unsupported:
+            raise ValueError(f"--chapters: chapter {n} (contests) is not supported yet")
+        if n not in nums:
+            nums.append(n)
+    return sorted(nums)
+
+
+def missing_chapters(chosen, topics):
+    """Chosen chapter numbers that no scanned topic belongs to."""
+    found = {t.get("chapter") for t in topics}
+    return [c for c in chosen if c not in found]
