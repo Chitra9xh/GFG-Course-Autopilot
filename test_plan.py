@@ -72,4 +72,21 @@ with tempfile.TemporaryDirectory() as d:
     assert plan.append_problems(tp, p) == 1                       # only the new one
     assert p.read_text(encoding="utf-8").count("- [ ]") == 4
     assert plan.append_problems(topic(2, 1, [it(1, "video", False)]), p) == 0
+
+
+# ---- --chapters parsing and validation
+assert plan.parse_chapters(["1"], (3, 4)) == [1]
+assert plan.parse_chapters(["1", "2"], (3, 4)) == [1, 2]
+assert plan.parse_chapters(["1,2"], (3, 4)) == [1, 2]
+assert plan.parse_chapters(["2,", "1", "2"], (3, 4)) == [1, 2]          # sorted, no duplicates
+for bad, word in ((["3"], "contests"), (["1", "4"], "contests"), (["x"], "not a chapter"), (["1.5"], "not a chapter"),
+                  (["0"], "not a chapter"), (["-1"], "not a chapter"), ([], "at least one"), ([","], "at least one")):
+    try:
+        plan.parse_chapters(bad, (3, 4))
+    except ValueError as e:
+        assert word in str(e), (bad, str(e))
+    else:
+        raise AssertionError(f"{bad} should be refused")
+assert plan.missing_chapters([1, 2], topics) == []                       # topics 1 and 2 exist in the sample list
+assert plan.missing_chapters([1, 2, 7], topics) == [7]
 print("test_plan OK")

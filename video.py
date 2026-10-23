@@ -234,7 +234,7 @@ def _watch(driver, duration, speed):
     start = time.monotonic()
     s0 = _read(driver)
     tracker = StallTracker(start, s0["current"] if s0 else 0.0)
-    out = {"outcome": None, "retries": 0, "warned": False, "last_log": start}
+    out = {"outcome": None, "retries": 0, "warned": False, "next_pct": config.PROGRESS_STEP}
 
     def tick(d):
         s = _read(d)
@@ -248,9 +248,10 @@ def _watch(driver, duration, speed):
         if now - start > timeout:
             out["outcome"] = "timeout"
             return True
-        if now - out["last_log"] >= 60:
-            out["last_log"] = now
-            log.info("  %s / %s (rate %gx)", _mmss(s["current"]), _mmss(s["duration"]), s["rate"])
+        if s["duration"] > 0 and s["current"] / s["duration"] * 100 >= out["next_pct"]:
+            pct = int(s["current"] / s["duration"] * 100 // config.PROGRESS_STEP * config.PROGRESS_STEP)
+            out["next_pct"] = pct + config.PROGRESS_STEP
+            log.info("  %d%% (%s / %s, rate %gx)", pct, _mmss(s["current"]), _mmss(s["duration"]), s["rate"])
         if abs(s["rate"] - speed) > 0.01 and not out["warned"]:
             out["warned"] = True
             log.warning("Playback rate is %gx, not %gx: the site may have reset it; the timeout may be too short", s["rate"], speed)

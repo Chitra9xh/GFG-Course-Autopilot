@@ -1,7 +1,7 @@
 import argparse, logging, sys
 import config
 import state
-from browser import SafetyStop, ensure_logged_in, launch_browser
+from browser import SafetyStop, ensure_logged_in, launch_browser, profile_in_use
 from scanner import scan_all, scan_items, scan_topics
 import plan
 import video
@@ -68,10 +68,14 @@ def run_quizzes(driver, args, ask):
     print(f"\n{summary}")
 
 
-def scan_course(driver):
+def scan_course(driver, chapters=None):
     """Scan the course and save data/state.json; returns the state. Keeps tick_pending marks from the previous state."""
     old = {t["slug"]: t.get("items", []) for t in state.load_state()["topics"]}
     topics = scan_topics(driver)
+    absent = plan.missing_chapters(chapters or [], topics)
+    if absent:
+        raise SafetyStop(f"Chapter(s) {absent} not found on the course page (chapters with topics: "
+                         f"{sorted({t['chapter'] for t in topics})}). Nothing was worked on.")
     st = state.new_state(topics)   # shares the topic dicts, so each save below includes the topics read so far
     state.save_state(st)
 
@@ -104,7 +108,7 @@ def make_confirm(auto_yes):
 def run_all(driver, args, ask):
     """Scan, then per topic: videos, quiz, log coding problems. Returns the exit code: 0 finished, 2 safety stop or fatal
     API error, 3 unexpected error, 130 Ctrl+C. State is saved after every step, so re-running resumes."""
-    st = scan_course(driver)
+    st = scan_course(driver, args.chapters)
     todo, completed = plan.order_topics(st["topics"], config.INCLUDE_CHAPTERS)
     later = []
     if args.max_topics:
@@ -167,6 +171,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="with --quizzes: read and solve, select ONE option, never click Submit")
     ap.add_argument("--max-questions", type=int, metavar="N", help="with --quizzes: submit at most N questions for real, asking you to type yes before each")
     ap.add_argument("--run", action="store_true", help="scan, then work through every topic of INCLUDE_CHAPTERS: videos, then quiz, then log coding problems; partly done topics first, completed ones skipped")
+    ap.add_argument("--chapters", nargs="+", metavar="N", help="with --run: work only on these chapters, then exit; e.g. --chapters 1 2 or --chapters 1,2 (1 = DSA, 2 = SQL; 3 and 4 are contests, not supported yet). Overrides INCLUDE_CHAPTERS for this run")
+    ap.add_argument("--background", action="store_true", help="run Chrome without a visible window (terminal only); log in once without this flag first; every command that opens the browser accepts it")
     ap.add_argument("--yes", action="store_true", help="with --run: skip the one 'type yes' before the first quiz submit (answers are FINAL)")
     ap.add_argument("--max-topics", type=int, metavar="N", help="with --run: work on at most N topics, then stop")
     args = ap.parse_args()
@@ -174,6 +180,14 @@ def main():
         ap.error("--run cannot be combined with --scan, --videos or --quizzes")
     if args.run and (args.topic or args.limit is not None):
         ap.error("--run works on the whole course; --topic and --limit do not apply")
+    if args.chapters is not None and not args.run:
+        ap.error("--chapters only works with --run")
+    if args.chapters is not None:
+        try:
+            args.chapters = plan.parse_chapters(args.chapters, config.CONTEST_CHAPTERS)
+        except ValueError as e:
+            ap.error(str(e))
+        config.INCLUDE_CHAPTERS = args.chapters   # for this run only
     if (args.yes or args.max_topics is not None) and not args.run:
         ap.error("--yes and --max-topics only work with --run")
     if args.max_topics is not None and args.max_topics < 1:
@@ -200,8 +214,14 @@ def main():
     driver = None
     try:
         ask = quiz_runner.make_ask() if (args.quizzes or args.run) else None
-        driver = launch_browser()
-        ensure_logged_in(driver)
+        if args.background:
+            if profile_in_use(config.CHROME_PROFILE_DIR):
+                raise SafetyStop(f"The browser profile {config.CHROME_PROFILE_DIR} is already in use by another Chrome. "
+                                 "Close that Chrome, then run again.")
+            print("background mode: no window will open")
+        driver = launch_browser(background=args.background)
+        ensure_logged_in(driver, args.background)
+        
         if args.run:
             return run_all(driver, args, ask)
         if args.videos:
@@ -220,7 +240,8 @@ def main():
                                             ("videos", "videos"), ("quizzes", "quizzes"), ("problems", "problems"),
                                             ("other", "other"), ("?tick", "unknown"), ("slug", "slug")])
             print(f"\nItems were read for chapters {sorted(config.INCLUDE_CHAPTERS)} only ('-' = not read). Saved to {config.STATE_FILE}")
-        input("\nCompare with the browser window, then press Enter to close... ")
+        if not args.background:
+            input("\nCompare with the browser window, then press Enter to close... ")
         return 0
     except SafetyStop as e:
         log.error("STOPPED: %s", e)

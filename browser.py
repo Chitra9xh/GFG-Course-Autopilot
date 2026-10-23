@@ -1,3 +1,4 @@
+import os
 import logging
 import random
 import re
@@ -37,7 +38,7 @@ def wait_for(driver, key, timeout=None):
 def _find_installed_browser():
     """Find an installed Chromium first, then Google Chrome."""
 
-    # Check every Chromium candidate before considering Google Chrome.
+
     candidates = [
         (
             "Chromium",
@@ -67,7 +68,7 @@ def _find_installed_browser():
     ]
 
     for browser_name, commands, paths in candidates:
-        # First check PATH.
+
         for command in commands:
             executable = shutil.which(command)
             if executable:
@@ -78,7 +79,7 @@ def _find_installed_browser():
                 )
                 return Path(executable)
 
-        # Then check common installation locations.
+
         for candidate in paths:
             path = Path(candidate)
             if path.is_file() and path.stat().st_mode & 0o111:
@@ -103,7 +104,7 @@ def _find_cached_browser_and_driver():
         return None, None
 
     def version_key(path):
-        # Sort versions numerically, not alphabetically.
+
         return tuple(
             int(part)
             for part in re.findall(r"\d+", path.name)
@@ -136,31 +137,59 @@ def _find_cached_browser_and_driver():
 
     return None, None
 
+def build_options(opts, browser_path=None, background=False):
+    """Fill a Chrome options object. background=True adds Chrome's new headless mode with an explicit window size.
+    Nothing else changes: no user-agent or other disguises."""
+    if browser_path is not None:
+        opts.binary_location = str(browser_path)
 
-def launch_browser():
-    """Launch Chromium first, then Chrome, with a cached Chrome fallback."""
+    opts.add_argument(
+        f"--user-data-dir={config.CHROME_PROFILE_DIR}"
+    )
+    opts.add_argument("--profile-directory=Default")
+    opts.add_argument("--start-maximized")
+    opts.add_argument("--no-first-run")
+    opts.add_argument("--no-default-browser-check")
+
+    if background:
+        opts.add_argument("--headless=new")
+        opts.add_argument("--window-size=%d,%d" % tuple(config.BACKGROUND_WINDOW_SIZE))
+
+    return opts
+
+
+def profile_in_use(profile_dir):
+    """True if another Chrome seems to be using this profile (Chrome's SingletonLock link names its process id).
+    A lock left behind by a crashed Chrome (process gone) does not count. Linux/macOS only; elsewhere False."""
+    lock = Path(profile_dir) / "SingletonLock"
+    if not os.path.lexists(lock):
+        return False
+    try:
+        pid = os.readlink(lock).rsplit("-", 1)[-1]
+    except OSError:
+        return True
+    if not pid.isdigit():
+        return True
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
+def launch_browser(background=False):
+    """Launch Chromium first, then Chrome, with a cached Chrome fallback. background=True: no visible window."""
 
     config.CHROME_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
     def make_options(browser_path=None):
-        opts = webdriver.ChromeOptions()
-
-        if browser_path is not None:
-            opts.binary_location = str(browser_path)
-
-        opts.add_argument(
-            f"--user-data-dir={config.CHROME_PROFILE_DIR}"
-        )
-        opts.add_argument("--profile-directory=Default")
-        opts.add_argument("--start-maximized")
-        opts.add_argument("--no-first-run")
-        opts.add_argument("--no-default-browser-check")
-
-        return opts
+        return build_options(webdriver.ChromeOptions(), browser_path, background)
 
     errors = []
 
-    # 1. Try installed Chromium first, followed by installed Google Chrome.
+
     installed_browser = _find_installed_browser()
 
     if installed_browser is not None:
@@ -179,7 +208,7 @@ def launch_browser():
             errors.append(message)
             log.warning("%s", message)
 
-    # 2. Try cached Chrome with its matching cached ChromeDriver.
+
     cached_browser, cached_driver = (
         _find_cached_browser_and_driver()
     )
@@ -199,7 +228,7 @@ def launch_browser():
             errors.append(message)
             log.warning("%s", message)
 
-    # 3. Last resort: let Selenium Manager try its normal discovery.
+
     try:
         log.info("Trying Selenium Manager as a final fallback.")
         return webdriver.Chrome(options=make_options())
@@ -223,11 +252,13 @@ def _logged_in(driver, timeout):
         return False
 
 
-def ensure_logged_in(driver):
+def ensure_logged_in(driver, background=False):
     driver.get(config.COURSE_URL)
     if _logged_in(driver, 10):
         log.info("Logged in (profile: %s)", config.CHROME_PROFILE_DIR)
         return
+    if background:
+        raise SafetyStop("Not logged in. Log in once without --background, then run again.")
     log.warning("Not logged in. Log in by hand in the Chrome window.")
     input(">>> Finish logging in, then press Enter here to continue... ")
     driver.get(config.COURSE_URL)
