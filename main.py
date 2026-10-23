@@ -1,7 +1,7 @@
 import argparse, logging, sys
 import config
 import state
-from browser import SafetyStop, ensure_logged_in, launch_browser
+from browser import SafetyStop, ensure_logged_in, launch_browser, profile_in_use
 from scanner import scan_all, scan_items, scan_topics
 import plan
 import video
@@ -172,6 +172,7 @@ def main():
     ap.add_argument("--max-questions", type=int, metavar="N", help="with --quizzes: submit at most N questions for real, asking you to type yes before each")
     ap.add_argument("--run", action="store_true", help="scan, then work through every topic of INCLUDE_CHAPTERS: videos, then quiz, then log coding problems; partly done topics first, completed ones skipped")
     ap.add_argument("--chapters", nargs="+", metavar="N", help="with --run: work only on these chapters, then exit; e.g. --chapters 1 2 or --chapters 1,2 (1 = DSA, 2 = SQL; 3 and 4 are contests, not supported yet). Overrides INCLUDE_CHAPTERS for this run")
+    ap.add_argument("--background", action="store_true", help="run Chrome without a visible window (terminal only); log in once without this flag first; every command that opens the browser accepts it")
     ap.add_argument("--yes", action="store_true", help="with --run: skip the one 'type yes' before the first quiz submit (answers are FINAL)")
     ap.add_argument("--max-topics", type=int, metavar="N", help="with --run: work on at most N topics, then stop")
     args = ap.parse_args()
@@ -213,8 +214,14 @@ def main():
     driver = None
     try:
         ask = quiz_runner.make_ask() if (args.quizzes or args.run) else None
-        driver = launch_browser()
-        ensure_logged_in(driver)
+        if args.background:
+            if profile_in_use(config.CHROME_PROFILE_DIR):
+                raise SafetyStop(f"The browser profile {config.CHROME_PROFILE_DIR} is already in use by another Chrome. "
+                                 "Close that Chrome, then run again.")
+            print("background mode: no window will open")
+        driver = launch_browser(background=args.background)
+        ensure_logged_in(driver, args.background)
+        
         if args.run:
             return run_all(driver, args, ask)
         if args.videos:
@@ -233,7 +240,8 @@ def main():
                                             ("videos", "videos"), ("quizzes", "quizzes"), ("problems", "problems"),
                                             ("other", "other"), ("?tick", "unknown"), ("slug", "slug")])
             print(f"\nItems were read for chapters {sorted(config.INCLUDE_CHAPTERS)} only ('-' = not read). Saved to {config.STATE_FILE}")
-        input("\nCompare with the browser window, then press Enter to close... ")
+        if not args.background:
+            input("\nCompare with the browser window, then press Enter to close... ")
         return 0
     except SafetyStop as e:
         log.error("STOPPED: %s", e)

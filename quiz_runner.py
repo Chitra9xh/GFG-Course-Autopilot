@@ -205,7 +205,7 @@ def submit_answer(driver, q, idx, n, before, confirm):
     if (btn.text or "").strip() != "Submit Response" or not btn.is_enabled():
         raise SafetyStop("The Submit Response button is missing its text or is disabled.")
     _guard(driver)
-    log.info("Submitting option %s for question %d", letter, q["number"])
+    log.info("Submitting option %s for question %d of %d", letter, q["number"], n)
     _safe_click(driver, btn, f"Submit Response (question {q['number']})")
     try:
         WebDriverWait(driver, config.QUIZ_SUBMIT_WAIT).until(lambda d: bool(find(d, "quiz_response")))
@@ -218,7 +218,7 @@ def submit_answer(driver, q, idx, n, before, confirm):
         raise SafetyStop(f"Question {q['number']} does not look submitted as {letter} "
                          f"(result {after.get('result')!r}, chosen {after.get('chosen')!r}).")
     counters = verify_counters(driver, before, after["result"])
-    log.info("Question %d submitted: %s (counters %d correct, %d wrong, %d unanswered)", q["number"], after["result"],
+    log.info("Question %d of %d submitted: %s (counters %d correct, %d wrong, %d unanswered)", q["number"], n, after["result"],
              counters["correct"], counters["wrong"], counters["unanswered"])
     return after, counters
 

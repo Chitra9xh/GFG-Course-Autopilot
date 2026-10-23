@@ -32,6 +32,9 @@ MAX_PLAY_RETRIES = 3            # press play again this many times after a stall
 VIDEO_TIMEOUT_FACTOR = 1.5      # hard timeout = duration / speed * FACTOR + EXTRA
 VIDEO_TIMEOUT_EXTRA = 60
 
+BACKGROUND_WINDOW_SIZE = (1920, 1080)   # window size of --background mode (headless Chrome has no window to maximize)
+PROGRESS_STEP = 10              # a video logs its progress every this many percent
+
 INCLUDE_CHAPTERS = [1]          # chapters worked on by default; --chapters overrides it for one run (1 = DSA, 2 = SQL)
 CONTEST_CHAPTERS = (3, 4)       # test-series chapters: contests, refused by --chapters (not supported yet)
 STATE_FILE = BASE_DIR / "data" / "state.json"
