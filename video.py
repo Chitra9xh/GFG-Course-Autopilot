@@ -169,6 +169,22 @@ def _wait_duration(driver):
     except TimeoutException:
         raise SafetyStop(f"Video length not available after {config.PAGE_TIMEOUT} s on {driver.current_url}")
 
+def _mute(driver):
+    """Mute the player with video.muted = true (no site button, no seeking; playback is not touched).
+    Logs once when it takes effect; returns True if the player is muted afterwards. Does nothing if MUTE_VIDEOS is False."""
+    if not config.MUTE_VIDEOS:
+        return False
+    els = find(driver, "video_el")
+    if not els:
+        return False
+    try:
+        was, now = driver.execute_script("const v = arguments[0]; const was = v.muted; v.muted = true; return [was, v.muted];", els[0])
+    except WebDriverException as e:
+        log.warning("Could not mute the video: %s", (e.msg or str(e))[:100])
+        return False
+    if now and not was:
+        log.info("Video muted")
+    return bool(now)
 
 def _start(driver, item):
     """Real click on play, then wait until the video is really playing. Only clicks while the player is paused
@@ -291,7 +307,9 @@ def play_video(driver, item, speed, n):
     log.info("Video %d: %r, length %s, starting at %s, speed %s, about %s to watch", n, title, _mmss(duration), _mmss(start_pos), speed_label(speed), _mmss(duration / speed))
     if n == 1:
         dump_page(driver, f"video_start_{item['index']}.html")
+    _mute(driver)
     _start(driver, item)
+    _mute(driver)   # again: the player may reset it when playback starts
     how = _set_speed(driver, speed)
     t0 = time.monotonic()
     outcome, retries = _watch(driver, duration, speed)

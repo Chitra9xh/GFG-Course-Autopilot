@@ -1,4 +1,5 @@
 """Offline checks for video.py (no browser). Run: python3 test_video.py"""
+import config
 import video
 
 from datetime import datetime
@@ -70,5 +71,28 @@ assert new[0]["tick_pending"] == "2026-10-13T10:00:00"
 assert "tick_pending" not in new[1] and arrived == [("video2", 1800.0)]
 assert "tick_pending" not in new[2]
 
+
+# _mute: sets video.muted = true through the player element; off when MUTE_VIDEOS is False; no <video> -> nothing
+class FakeDriver:
+    def __init__(self, result, found=True):
+        self.result, self.found, self.calls = result, found, []
+
+    def find_elements(self, by, value):
+        return [object()] if self.found else []
+
+    def execute_script(self, js, el):
+        self.calls.append(js)
+        return self.result
+
+
+d = FakeDriver([False, True])
+assert video._mute(d) is True and len(d.calls) == 1 and "muted = true" in d.calls[0] and "currentTime" not in d.calls[0]
+assert video._mute(FakeDriver([True, True])) is True                      # already muted
+assert video._mute(FakeDriver([False, False])) is False                   # the player refused
+assert video._mute(FakeDriver([False, True], found=False)) is False       # no <video> on the page
+config.MUTE_VIDEOS = False
+d = FakeDriver([False, True])
+assert video._mute(d) is False and d.calls == []                          # setting off: the page is not touched
+config.MUTE_VIDEOS = True
 
 print("video checks passed")

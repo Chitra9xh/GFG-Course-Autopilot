@@ -33,6 +33,7 @@ VIDEO_TIMEOUT_FACTOR = 1.5      # hard timeout = duration / speed * FACTOR + EXT
 VIDEO_TIMEOUT_EXTRA = 60
 
 BACKGROUND_WINDOW_SIZE = (1920, 1080)   # window size of --background mode (headless Chrome has no window to maximize)
+MUTE_VIDEOS = True              # mute the player (video.muted = true) in visible and background mode; playback is not touched
 PROGRESS_STEP = 10              # a video logs its progress every this many percent
 
 INCLUDE_CHAPTERS = [1]          # chapters worked on by default; --chapters overrides it for one run (1 = DSA, 2 = SQL)
